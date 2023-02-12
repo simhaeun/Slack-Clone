@@ -214,7 +214,7 @@ useEffect(() => {
     }
 }, [channel.currentChannel])
 ```
-현재 시점 이후로 오는 메시지 캐치하기
+현재 시점 이후로 오는 메시지 실시간으로 캐치 ✨
 ```jsx
 useEffect(() => {
   if(!channel.currentChannel) return;
@@ -228,19 +228,121 @@ useEffect(() => {
   }
 }, [channel.currentChannel])
 ```
-- 프로필 이미지 (https://ko.gravatar.com/)
-- 이모티콘 (https://missiveapp.com/open/emoji-mart)
-- 이미지 첨부
-<br />
+#### 이미지 전송 기능
+```jsx
+const uploadFile = useCallback(() => {
+  setUploading(true) 
+  const filePath = `chat/${uuidv4()}.${file.name.split('.').pop()}` // 파일 확장자명(jpg,png) 가져오기
+  const uploadTask = uploadBytesResumable(refStorage(getStorage(), filePath), file); 
+  const unsubscribe = uploadTask.on('state_changed',(snap) => {
+    const percentUploaded = Math.round((snap.bytesTransferred / snap.totalBytes) * 100)
+    setPercent(percentUploaded) 
+  }, (error) => {
+    console.error('error')
+    setUploading(false)
+  }, async () => {
+    try {
+      const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+      await set(
+        push(ref(getDatabase(), 'messages/' + channel.currentChannel?.id)),
+        createImageMessage(downloadUrl)
+      );
+      setUploading(false)
+      unsubscribe();
+    } catch (error) {
+      console.error(error)
+      setUploading(false)
+      unsubscribe();
+    }
+  }) 
+}, [channel.currentChannel?.id, createImageMessage, file, setPercent, setUploading])
+```
+![image](https://user-images.githubusercontent.com/58839497/218297602-57e45d16-f26b-4659-9655-5ab395fbefc1.png)
 
-## 테마 설정
-- 테마 색상 변경
+#### 메시지 자동 스크롤 기능
+```jsx
+const messageEndRef = useRef();
+
+useEffect(() => {
+  const setTimeoutId = setTimeout(() => {
+    messageEndRef.current.scrollIntoView({ behavior: 'smooth' })
+  }, 1000)
+  return () => {
+    clearTimeout(setTimeoutId)
+  }
+}, [messages.length])
+```
+- `scrollIntoView()` - 특정 요소 위치로 화면 스크롤 이동하기
+
+- 프로필 이미지 (https://ko.gravatar.com/) & (https://www.npmjs.com/package/md5)
+- 이모티콘 (https://missiveapp.com/open/emoji-mart)
 
 <br />
 
 ## 프로필
-- 이미지 생성/변경 (이미지 크롭, 저장) 
+#### 이미지 생성/변경
+```jsx
+function ProfileModal({open, handleColse}) {
+  const {user} = useSelector(state => state);
+  const [uploadedCroppedImage, setUploadedCroppedImage] = useState('');
+  
+  const uploadCroppedImage = useCallback(async() => {
+    if(!user.currentUser.uid) return;
+    const storageRef = refStorage(getStorage(), `avatars/users/${user.currentUser.uid}`);
+    const uploadTask = await uploadBytes(storageRef, blob);
+    const downloadUrl = await getDownloadURL(uploadTask.ref);
+    setUploadedCroppedImage(downloadUrl);
+  }, [user.currentUser.uid, blob])
+  
+  return (
+    { croppedImage && (<Button onClick={uploadCroppedImage}>프로필 이미지 저장</Button>) }
+)}
+```
+```jsx
+useEffect(() => {
+  if(!uploadedCroppedImage || !user.currentUser) return;
+  
+  async function changeAvatar() {
+    await updateProfile(user.currentUser, { photoURL: uploadedCroppedImage });
+    const updates = {};
+    updates['/users/' + user.currentUser.uid + '/avatar'] = uploadedCroppedImage;
+    await update(ref(getDatabase()), updates);
+	}
+  changeAvatar()
+  closeMoadl()
+}, [uploadedCroppedImage, user.currentUser, closeMoadl])
+```
+<br />
+
+## 테마 설정
+
+```jsx
+const SET_THEME = 'SET_THEME'
+export const setTheme = (mainTheme, subTheme) => ({type: SET_THEME, mainTheme, subTheme})
+
+const initialState = {mainTheme: '#4c3c4c', subTheme: '#eee'}
+
+const themeReducer = (state = initialState, action) => {
+  switch (action.type) {
+    case SET_THEME:
+      return {
+        mainTheme: action.mainTheme,
+        subTheme: action.subTheme
+      };
+    default:
+      return state;
+  }
+}
+export default themeReducer;
+```
+- 테마 색상 변경 (https://omgovich.github.io/react-colorful/)
 
 <br />
 
-PC에 최적화 된 웹 사이트 입니다. (반응형 준비중)
+
+
+
+
+PC에 최적화 된 웹 사이트 입니다.
+
+Firestore 보안 규칙 이슈에 의해 사진 전송/프로필 이미지 변경이 안되고 있음
