@@ -340,9 +340,3 @@ export default themeReducer;
 <br />
 
 
-
-
-
-PC에 최적화 된 웹 사이트 입니다.
-
-Firestore 보안 규칙 이슈에 의해 사진 전송/프로필 이미지 변경이 안되고 있음
